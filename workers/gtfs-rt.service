@@ -1,0 +1,28 @@
+[Unit]
+Description=GTFS-RT collector
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=gtfs
+Group=gtfs
+WorkingDirectory=/var/lib/gtfs
+EnvironmentFile=/etc/gtfs/collector.env
+ExecStart=/usr/bin/bun run /opt/route-optimization/workers/gtfs-rt.ts
+
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+MemoryMax=256M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gtfs
+
+[Install]
+WantedBy=multi-user.target

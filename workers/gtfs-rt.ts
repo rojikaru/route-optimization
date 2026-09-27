@@ -62,12 +62,7 @@ const collectRt = async (
     headers,
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
-  console.info(
-    Temporal.Now.instant().toString(),
-    response.status,
-    performance.now() - startTime,
-    "ms",
-  );
+  console.info(response.status, performance.now() - startTime, "ms");
 
   const newState: HeaderState = {
     etag: response.headers.get("etag") ?? etag,
@@ -119,9 +114,6 @@ const main = async () => {
         runtimeState.protobufs.length >= ARCHIVE_SIZE_LIMIT;
 
       if (reachedArchiveLimit || moreThanOneMinute) {
-        console.info(
-          `Dumping ${runtimeState.protobufs.length} protobufs to disk (archive limit reached: ${reachedArchiveLimit}, sleep duration: ${sleepDuration} ms)`,
-        );
         await dumpToDisk(runtimeState.protobufs);
         await healthCheck();
         runtimeState.clearProtobufs();

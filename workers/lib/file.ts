@@ -100,6 +100,8 @@ export const dumpToDisk = async (protobufFiles: ProtobufFile[]) => {
 
   await Bun.write(tmpFilename, archive, { createPath: true });
   await rename(tmpFilename, `${filename}.tar.gz`);
+
+  await healthCheck();
 };
 
 export const uploadPending = async (

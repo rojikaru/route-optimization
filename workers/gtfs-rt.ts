@@ -5,7 +5,6 @@ import { S3Client } from "bun";
 import { requireEnvVar } from "~/lib/env.ts";
 import { dumpToDisk, uploadPending, mtime, hex } from "~/lib/file.ts";
 import type { HeaderState, ProtobufFile } from "~/lib/types.ts";
-import { healthCheck } from "~/lib/health";
 import { nextInvocationInterval } from "~/lib/http-throttle";
 
 import { RuntimeState } from "~/rt/state";
@@ -115,7 +114,6 @@ const main = async () => {
 
       if (reachedArchiveLimit || moreThanOneMinute) {
         await dumpToDisk(runtimeState.protobufs);
-        await healthCheck();
         runtimeState.clearProtobufs();
       }
 
@@ -137,7 +135,6 @@ const main = async () => {
 
   console.info("Dumping remaining protobufs to disk before exit...");
   await dumpToDisk(runtimeState.protobufs);
-  await healthCheck();
 
   console.error(`Exiting due to: ${runtimeState.failReason}`);
   process.exit(runtimeState.exitCode);

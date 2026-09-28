@@ -5,10 +5,10 @@ import { S3Client } from "bun";
 import { requireEnvVar } from "~/lib/env.ts";
 import { dumpToDisk, uploadPending, mtime, hex } from "~/lib/file.ts";
 import type { HeaderState, ProtobufFile } from "~/lib/types.ts";
+import { healthCheck } from "~/lib/health";
 import { nextInvocationInterval } from "~/lib/http-throttle";
 
 import { RuntimeState } from "~/rt/state";
-import { healthCheck } from "./lib/health";
 
 // Storage constants
 const R2_ENDPOINT = requireEnvVar("S3_ENDPOINT");
@@ -18,6 +18,7 @@ const S3_SECRET_ACCESS_KEY = requireEnvVar("S3_SECRET_ACCESS_KEY");
 // Application constants
 const ARCHIVE_SIZE_LIMIT = Number.parseInt(requireEnvVar("ARCHIVE_SIZE_LIMIT"));
 const FETCH_TIMEOUT_MS = Number.parseInt(requireEnvVar("FETCH_TIMEOUT_MS"));
+const HEALTHCHECK_ENDPOINT = requireEnvVar("RT_HEALTHCHECK_ENDPOINT");
 
 // API-facing constants
 const API_ENDPOINT = requireEnvVar("API_ENDPOINT");
@@ -84,11 +85,12 @@ const main = async () => {
     process.on(signal, () => runtimeState.abort());
   }
 
-  await healthCheck("startup");
+  await healthCheck(HEALTHCHECK_ENDPOINT, "startup");
 
   while (runtimeState.failReason === null) {
     try {
       await uploadPending(r2);
+      await healthCheck(HEALTHCHECK_ENDPOINT, "success");
     } catch (error) {
       assert.ok(
         error instanceof Error,
@@ -97,7 +99,7 @@ const main = async () => {
       console.error(
         `Error during uploadPending: ${error.toString()}. Is S3 down?`,
       );
-      await healthCheck("failure");
+      await healthCheck(HEALTHCHECK_ENDPOINT, "failure");
     }
 
     try {
@@ -119,6 +121,7 @@ const main = async () => {
       if (reachedArchiveLimit || moreThanOneMinute) {
         await dumpToDisk(runtimeState.protobufs);
         runtimeState.clearProtobufs();
+        await healthCheck(HEALTHCHECK_ENDPOINT, "success");
       }
 
       await Promise.race([
@@ -139,7 +142,7 @@ const main = async () => {
 
   console.info("Dumping remaining protobufs to disk before exit...");
   await dumpToDisk(runtimeState.protobufs);
-  await healthCheck(runtimeState.exitCode);
+  await healthCheck(HEALTHCHECK_ENDPOINT, runtimeState.exitCode);
 
   console.error(`Exiting due to: ${runtimeState.failReason}`);
   process.exit(runtimeState.exitCode);

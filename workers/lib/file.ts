@@ -2,7 +2,6 @@ import { rename } from "node:fs/promises";
 import { S3Client, Glob } from "bun";
 
 import type { HeaderState, ProtobufFile } from "~/lib/types";
-import { healthCheck } from "~/lib/health";
 
 const ETAG_REGEX = /^W\/"([0-9a-f]+)-(\d+)"$/;
 
@@ -100,8 +99,6 @@ export const dumpToDisk = async (protobufFiles: ProtobufFile[]) => {
 
   await Bun.write(tmpFilename, archive, { createPath: true });
   await rename(tmpFilename, `${filename}.tar.gz`);
-
-  await healthCheck();
 };
 
 export const uploadPending = async (
@@ -139,6 +136,4 @@ export const uploadPending = async (
     await file.delete();
     count++;
   }
-
-  await healthCheck();
 };

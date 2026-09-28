@@ -2,29 +2,28 @@ import { requireEnvVar } from "~/lib/env.ts";
 
 type HealthCheckMode = "success" | "failure" | "startup" | number;
 
-const HEALTHCHECK_ENDPOINT = requireEnvVar("HEALTHCHECK_ENDPOINT");
-const healthcheckSeparator = HEALTHCHECK_ENDPOINT.endsWith("/") ? "" : "/";
-
 const USER_AGENT = requireEnvVar("USER_AGENT");
 
-const urlForMode = (mode: HealthCheckMode) => {
+const urlForMode = (endpoint: string, mode: HealthCheckMode) => {
+  const healthcheckSeparator = endpoint.endsWith("/") ? "" : "/";
+
   if (typeof mode === "number") {
-    return `${HEALTHCHECK_ENDPOINT}${healthcheckSeparator}${mode}`;
+    return `${endpoint}${healthcheckSeparator}${mode}`;
   }
 
   switch (mode) {
     case "success":
-      return HEALTHCHECK_ENDPOINT;
+      return endpoint;
     case "failure":
-      return `${HEALTHCHECK_ENDPOINT}${healthcheckSeparator}fail`;
+      return `${endpoint}${healthcheckSeparator}fail`;
     case "startup":
-      return `${HEALTHCHECK_ENDPOINT}${healthcheckSeparator}start`;
+      return `${endpoint}${healthcheckSeparator}start`;
   }
 };
 
-export const healthCheck = async (mode: HealthCheckMode = "success") => {
+export const healthCheck = async (endpoint: string, mode: HealthCheckMode = "success") => {
   try {
-    const response = await fetch(urlForMode(mode), {
+    const response = await fetch(urlForMode(endpoint, mode), {
       method: "GET",
       headers: {
         "User-Agent": USER_AGENT,

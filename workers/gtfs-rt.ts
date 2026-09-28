@@ -1,19 +1,21 @@
 import assert from "node:assert";
 import process from "node:process";
-import { S3Client } from "bun";
+
+import type { S3Client } from "bun";
 
 import { requireEnvVar } from "~/lib/env.ts";
-import { dumpToDisk, uploadPending, mtime, hex } from "~/lib/file.ts";
+import {
+  dumpToDisk,
+  uploadPending,
+  createR2Client,
+  mtime,
+  hash,
+} from "~/lib/file.ts";
 import type { HeaderState, ProtobufFile } from "~/lib/types.ts";
 import { healthCheck } from "~/lib/health";
 import { nextInvocationInterval } from "~/lib/http-throttle";
 
 import { RuntimeState } from "~/rt/state";
-
-// Storage constants
-const R2_ENDPOINT = requireEnvVar("S3_ENDPOINT");
-const S3_ACCESS_KEY_ID = requireEnvVar("S3_ACCESS_KEY_ID");
-const S3_SECRET_ACCESS_KEY = requireEnvVar("S3_SECRET_ACCESS_KEY");
 
 // Application constants
 const ARCHIVE_SIZE_LIMIT = Number.parseInt(requireEnvVar("ARCHIVE_SIZE_LIMIT"));
@@ -38,9 +40,9 @@ const apiResponseToFile = async (
     );
   }
 
-  const data = await response.arrayBuffer();
+  const data = await response.bytes();
   const stamp = mtime(state);
-  const filename = `${stamp}-${await hex(data)}.pb`;
+  const filename = `${stamp}-${hash(data)}.pb`;
   return [filename, data];
 };
 
@@ -73,14 +75,63 @@ const collectRt = async (
   return [newState, protobufFile];
 };
 
-const main = async () => {
-  const r2 = new S3Client({
-    endpoint: R2_ENDPOINT,
-    accessKeyId: S3_ACCESS_KEY_ID,
-    secretAccessKey: S3_SECRET_ACCESS_KEY,
-  });
+const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
+  try {
+    await uploadPending(r2);
+    await healthCheck(HEALTHCHECK_ENDPOINT, "success");
+  } catch (error) {
+    assert.ok(
+      error instanceof Error,
+      "Caught error is not an instance of Error",
+    );
+    console.error(
+      `Error during uploadPending: ${error.toString()}. Is S3 down?`,
+    );
+    await healthCheck(HEALTHCHECK_ENDPOINT, "failure");
+  }
 
+  try {
+    const [headerState, protobufFile] = await collectRt(
+      runtimeState.headerState,
+    );
+    runtimeState.headerState = headerState;
+    runtimeState.resetFailedCount();
+
+    if (protobufFile) {
+      runtimeState.appendFile(protobufFile);
+    }
+
+    const sleepDuration = nextInvocationInterval();
+    const moreThanOneMinute = sleepDuration > 60_000;
+    const reachedArchiveLimit =
+      runtimeState.protobufs.length >= ARCHIVE_SIZE_LIMIT;
+
+    if (reachedArchiveLimit || moreThanOneMinute) {
+      await dumpToDisk(runtimeState.protobufs);
+      runtimeState.clearProtobufs();
+      await healthCheck(HEALTHCHECK_ENDPOINT, "success");
+    }
+
+    await Promise.race([
+      Bun.sleep(sleepDuration),
+      runtimeState.waitUntilAborted(),
+    ]);
+  } catch (error) {
+    runtimeState.incrementFailedCount();
+
+    assert.ok(
+      error instanceof Error,
+      "Caught error is not an instance of Error",
+    );
+    console.error(error.toString());
+    await Bun.sleep(5_000);
+  }
+};
+
+const main = async () => {
+  const r2 = createR2Client();
   const runtimeState = new RuntimeState();
+
   for (const signal of ["SIGTERM", "SIGINT", "SIGQUIT"] as const) {
     process.on(signal, () => runtimeState.abort());
   }
@@ -88,56 +139,7 @@ const main = async () => {
   await healthCheck(HEALTHCHECK_ENDPOINT, "startup");
 
   while (runtimeState.failReason === null) {
-    try {
-      await uploadPending(r2);
-      await healthCheck(HEALTHCHECK_ENDPOINT, "success");
-    } catch (error) {
-      assert.ok(
-        error instanceof Error,
-        "Caught error is not an instance of Error",
-      );
-      console.error(
-        `Error during uploadPending: ${error.toString()}. Is S3 down?`,
-      );
-      await healthCheck(HEALTHCHECK_ENDPOINT, "failure");
-    }
-
-    try {
-      const [headerState, protobufFile] = await collectRt(
-        runtimeState.headerState,
-      );
-      runtimeState.headerState = headerState;
-      runtimeState.resetFailedCount();
-
-      if (protobufFile) {
-        runtimeState.appendFile(protobufFile);
-      }
-
-      const sleepDuration = nextInvocationInterval();
-      const moreThanOneMinute = sleepDuration > 60_000;
-      const reachedArchiveLimit =
-        runtimeState.protobufs.length >= ARCHIVE_SIZE_LIMIT;
-
-      if (reachedArchiveLimit || moreThanOneMinute) {
-        await dumpToDisk(runtimeState.protobufs);
-        runtimeState.clearProtobufs();
-        await healthCheck(HEALTHCHECK_ENDPOINT, "success");
-      }
-
-      await Promise.race([
-        Bun.sleep(sleepDuration),
-        runtimeState.waitUntilAborted(),
-      ]);
-    } catch (error) {
-      runtimeState.incrementFailedCount();
-
-      assert.ok(
-        error instanceof Error,
-        "Caught error is not an instance of Error",
-      );
-      console.error(error.toString());
-      await Bun.sleep(5_000);
-    }
+    await tick(runtimeState, r2);
   }
 
   console.info("Dumping remaining protobufs to disk before exit...");

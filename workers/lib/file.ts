@@ -1,6 +1,7 @@
 import { rename } from "node:fs/promises";
-import { S3Client, Glob } from "bun";
+import { S3Client, Glob, type SupportedCryptoAlgorithms } from "bun";
 
+import { requireEnvVar } from "~/lib/env";
 import type { HeaderState, ProtobufFile } from "~/lib/types";
 
 const ETAG_REGEX = /^W\/"([0-9a-f]+)-(\d+)"$/;
@@ -10,14 +11,12 @@ const ETAG_REGEX = /^W\/"([0-9a-f]+)-(\d+)"$/;
  *
  * @param data The input data as an ArrayBuffer to be hashed.
  * @param algorithm The hashing algorithm to use (default is "SHA-256").
- * @returns A promise that resolves to the hexadecimal string representation of the hash.
+ * @returns Hexadecimal string representation of the hash.
  */
-export const hex = async (data: ArrayBuffer, algorithm: string = "SHA-256") => {
-  const hash = await crypto.subtle.digest(algorithm, data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-};
+export const hash = (
+  data: Uint8Array | string,
+  algorithm: SupportedCryptoAlgorithms = "sha256",
+) => new Bun.CryptoHasher(algorithm).update(data).digest("hex");
 
 /**
  * Typical ETag format: "W/"<bytesize>-<timestamp>""
@@ -78,7 +77,7 @@ export const dumpToDisk = async (protobufFiles: ProtobufFile[]) => {
 
   const fileMap = Object.fromEntries(protobufFiles);
   const archive = new Bun.Archive(fileMap, { compress: "gzip" });
-  const checksum = await hex((await archive.bytes()).buffer);
+  const checksum = hash(await archive.bytes());
 
   // SAFETY: Length >= 1 guaranteed by the if guard
   const firstFile = protobufFiles.at(0)![0];
@@ -136,4 +135,12 @@ export const uploadPending = async (
     await file.delete();
     count++;
   }
+};
+
+export const createR2Client = () => {
+  return new S3Client({
+    endpoint: requireEnvVar("S3_ENDPOINT"),
+    accessKeyId: requireEnvVar("S3_ACCESS_KEY_ID"),
+    secretAccessKey: requireEnvVar("S3_SECRET_ACCESS_KEY"),
+  });
 };

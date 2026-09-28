@@ -5,5 +5,7 @@ export interface HeaderState {
 
 export type ProtobufFile = readonly [
   filename: string,
-  data: ArrayBuffer,
+  data: Uint8Array,
 ];
+
+export type HealthCheckMode = "success" | "failure" | "startup" | number;

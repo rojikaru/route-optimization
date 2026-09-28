@@ -1,6 +1,5 @@
 import { requireEnvVar } from "~/lib/env.ts";
-
-type HealthCheckMode = "success" | "failure" | "startup" | number;
+import type { HealthCheckMode } from "~/lib/types.ts";
 
 const USER_AGENT = requireEnvVar("USER_AGENT");
 

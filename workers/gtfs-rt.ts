@@ -8,6 +8,7 @@ import type { HeaderState, ProtobufFile } from "~/lib/types.ts";
 import { nextInvocationInterval } from "~/lib/http-throttle";
 
 import { RuntimeState } from "~/rt/state";
+import { healthCheck } from "./lib/health";
 
 // Storage constants
 const R2_ENDPOINT = requireEnvVar("S3_ENDPOINT");
@@ -83,6 +84,8 @@ const main = async () => {
     process.on(signal, () => runtimeState.abort());
   }
 
+  await healthCheck("startup");
+
   while (runtimeState.failReason === null) {
     try {
       await uploadPending(r2);
@@ -94,6 +97,7 @@ const main = async () => {
       console.error(
         `Error during uploadPending: ${error.toString()}. Is S3 down?`,
       );
+      await healthCheck("failure");
     }
 
     try {
@@ -135,6 +139,7 @@ const main = async () => {
 
   console.info("Dumping remaining protobufs to disk before exit...");
   await dumpToDisk(runtimeState.protobufs);
+  await healthCheck(runtimeState.exitCode);
 
   console.error(`Exiting due to: ${runtimeState.failReason}`);
   process.exit(runtimeState.exitCode);

@@ -10,11 +10,13 @@ export class RuntimeState {
   private headers: HeaderState;
   private collectedFiles: ProtobufFile[];
   private failedTries: number;
+  private uploadAfter: Temporal.Instant;
 
   constructor() {
     this.abortController = new AbortController();
     this.collectedFiles = [];
     this.failedTries = 0;
+    this.uploadAfter = Temporal.Now.instant().add({ minutes: -1 });
 
     this.headers = {
       etag: null,
@@ -34,6 +36,14 @@ export class RuntimeState {
 
   set headerState(state: HeaderState) {
     this.headers = state;
+  }
+
+  get retryUploadAfter() {
+    return this.uploadAfter;
+  }
+
+  set retryUploadAfter(instant: Temporal.Instant) {
+    this.uploadAfter = instant;
   }
 
   get protobufs() {

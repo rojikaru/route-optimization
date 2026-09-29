@@ -18,7 +18,9 @@ import { nextInvocationInterval } from "~/lib/http-throttle";
 import { RuntimeState } from "~/collector/state";
 
 // Application constants
-const ARCHIVE_COUNT_LIMIT = Number.parseInt(requireEnvVar("ARCHIVE_COUNT_LIMIT"));
+const ARCHIVE_COUNT_LIMIT = Number.parseInt(
+  requireEnvVar("ARCHIVE_COUNT_LIMIT"),
+);
 const FETCH_TIMEOUT_MS = Number.parseInt(requireEnvVar("FETCH_TIMEOUT_MS"));
 const HEALTHCHECK_ENDPOINT = requireEnvVar("HEALTHCHECK_ENDPOINT");
 
@@ -77,7 +79,12 @@ const collectRt = async (
 
 const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
   try {
-    await uploadPending(r2);
+    const now = Temporal.Now.instant();
+    if (Temporal.Instant.compare(now, runtimeState.retryUploadAfter) >= 0) {
+      // schedule first, so a failed upload also waits instead of retrying every tick
+      runtimeState.retryUploadAfter = now.add({ minutes: 10 });
+      await uploadPending(r2);
+    }
   } catch (error) {
     assert.ok(
       error instanceof Error,

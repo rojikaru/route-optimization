@@ -78,7 +78,6 @@ const collectRt = async (
 const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
   try {
     await uploadPending(r2);
-    await healthCheck(HEALTHCHECK_ENDPOINT, "success");
   } catch (error) {
     assert.ok(
       error instanceof Error,
@@ -87,7 +86,10 @@ const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
     console.error(
       `Error during uploadPending: ${error.toString()}. Is S3 down?`,
     );
-    await healthCheck(HEALTHCHECK_ENDPOINT, "failure");
+    await healthCheck(HEALTHCHECK_ENDPOINT, "failure", {
+      source: "uploadPending",
+      message: error.toString(),
+    });
   }
 
   try {
@@ -102,11 +104,11 @@ const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
     }
 
     const sleepDuration = nextInvocationInterval();
-    const moreThanOneMinute = sleepDuration > 60_000;
+    const sleepMoreThanOneMinute = sleepDuration > 60_000;
     const reachedArchiveLimit =
       runtimeState.protobufs.length >= ARCHIVE_COUNT_LIMIT;
 
-    if (reachedArchiveLimit || moreThanOneMinute) {
+    if (reachedArchiveLimit || sleepMoreThanOneMinute) {
       await dumpToDisk(runtimeState.protobufs);
       runtimeState.clearProtobufs();
       await healthCheck(HEALTHCHECK_ENDPOINT, "success");
@@ -136,15 +138,16 @@ const main = async () => {
     process.on(signal, () => runtimeState.abort());
   }
 
-  await healthCheck(HEALTHCHECK_ENDPOINT, "startup");
-
   while (runtimeState.failReason === null) {
     await tick(runtimeState, r2);
   }
 
   console.info("Dumping remaining protobufs to disk before exit...");
   await dumpToDisk(runtimeState.protobufs);
-  await healthCheck(HEALTHCHECK_ENDPOINT, runtimeState.exitCode);
+  await healthCheck(HEALTHCHECK_ENDPOINT, runtimeState.exitCode, {
+    source: "Collector main loop",
+    message: runtimeState.failReason,
+  });
 
   console.error(`Exiting due to: ${runtimeState.failReason}`);
   process.exit(runtimeState.exitCode);

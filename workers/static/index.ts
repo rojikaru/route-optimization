@@ -8,8 +8,8 @@ import { createR2Client, hash } from "~/lib/file";
 import type { FileRecord, SemVer } from "~/lib/types";
 import { healthCheck } from "~/lib/health";
 
-const API_ENDPOINT = requireEnvVar("STATIC_API_ENDPOINT");
-const HEALTHCHECK_ENDPOINT = requireEnvVar("STATIC_HEALTHCHECK_ENDPOINT");
+const API_ENDPOINT = requireEnvVar("API_ENDPOINT");
+const HEALTHCHECK_ENDPOINT = requireEnvVar("HEALTHCHECK_ENDPOINT");
 const FETCH_TIMEOUT_MS = Number.parseInt(requireEnvVar("FETCH_TIMEOUT_MS"));
 const USER_AGENT = requireEnvVar("USER_AGENT");
 

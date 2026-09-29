@@ -10,7 +10,7 @@ User=gtfs
 Group=gtfs
 WorkingDirectory=/var/lib/gtfs
 EnvironmentFile=/etc/gtfs/collector.env
-ExecStart=/usr/bin/bun run /opt/route-optimization/workers/rt/index.ts
+ExecStart=/usr/bin/bun run /opt/route-optimization/workers/collector/index.ts
 
 Restart=always
 RestartSec=5

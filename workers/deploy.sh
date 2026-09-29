@@ -17,7 +17,7 @@ git -C "$REPO_DIR" pull --ff-only
 keys() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | sort -u; }
 for svc in collector static; do
   if ! diff <(keys "$ENV_DIR/$svc.env") \
-            <(keys "$WORKERS_DIR/env/$svc.env.example") >/dev/null; then
+            <(keys "$WORKERS_DIR/$svc/.env.example") >/dev/null; then
     echo "$ENV_DIR/$svc.env is out of sync with $svc.env.example"
     exit 1
   fi

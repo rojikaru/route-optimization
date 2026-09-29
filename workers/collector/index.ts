@@ -15,12 +15,12 @@ import type { HeaderState, ProtobufFile } from "~/lib/types.ts";
 import { healthCheck } from "~/lib/health";
 import { nextInvocationInterval } from "~/lib/http-throttle";
 
-import { RuntimeState } from "~/rt/state";
+import { RuntimeState } from "~/collector/state";
 
 // Application constants
 const ARCHIVE_COUNT_LIMIT = Number.parseInt(requireEnvVar("ARCHIVE_COUNT_LIMIT"));
 const FETCH_TIMEOUT_MS = Number.parseInt(requireEnvVar("FETCH_TIMEOUT_MS"));
-const HEALTHCHECK_ENDPOINT = requireEnvVar("RT_HEALTHCHECK_ENDPOINT");
+const HEALTHCHECK_ENDPOINT = requireEnvVar("HEALTHCHECK_ENDPOINT");
 
 // API-facing constants
 const API_ENDPOINT = requireEnvVar("API_ENDPOINT");

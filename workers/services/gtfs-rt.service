@@ -19,6 +19,7 @@ KillSignal=SIGTERM
 
 MemoryMin=64M
 MemoryMax=256M
+MemorySwapMax=256M
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

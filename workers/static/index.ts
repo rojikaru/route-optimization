@@ -79,6 +79,8 @@ const runValidator = async (
 ) => {
   const validatorPath = await downloadGtfsValidator();
 
+  Bun.gc(true);
+
   // https://github.com/MobilityData/gtfs-validator/blob/master/docs/USAGE.md
   const result = await $`
     java -XX:+UseSerialGC -Xms140m -Xmx140m \

@@ -1,0 +1,21 @@
+[Unit]
+Description=Snapshot GTFS static to R2
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=gtfs
+Group=gtfs
+EnvironmentFile=/etc/gtfs/static.env
+CacheDirectory=gtfs-static
+WorkingDirectory=%C/gtfs-static
+ExecStart=/usr/bin/bun run /opt/route-optimization/workers/static/index.ts
+Nice=19
+IOSchedulingClass=idle
+MemoryMax=320M
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

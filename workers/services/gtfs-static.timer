@@ -1,0 +1,10 @@
+[Unit]
+Description=GTFS static snapshot every 3 hours
+
+[Timer]
+OnCalendar=*-*-* 00/3:17:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

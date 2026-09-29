@@ -10,13 +10,14 @@ User=gtfs
 Group=gtfs
 WorkingDirectory=/var/lib/gtfs
 EnvironmentFile=/etc/gtfs/collector.env
-ExecStart=/usr/bin/bun run /opt/route-optimization/workers/gtfs-rt.ts
+ExecStart=/usr/bin/bun run /opt/route-optimization/workers/rt/index.ts
 
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
 KillSignal=SIGTERM
 
+MemoryMin=64M
 MemoryMax=256M
 NoNewPrivileges=true
 PrivateTmp=true

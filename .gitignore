@@ -1,2 +1,5 @@
 /static/
 out/
+archives*/
+bin*/
+tmp/

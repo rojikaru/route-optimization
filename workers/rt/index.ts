@@ -18,7 +18,7 @@ import { nextInvocationInterval } from "~/lib/http-throttle";
 import { RuntimeState } from "~/rt/state";
 
 // Application constants
-const ARCHIVE_SIZE_LIMIT = Number.parseInt(requireEnvVar("ARCHIVE_SIZE_LIMIT"));
+const ARCHIVE_COUNT_LIMIT = Number.parseInt(requireEnvVar("ARCHIVE_COUNT_LIMIT"));
 const FETCH_TIMEOUT_MS = Number.parseInt(requireEnvVar("FETCH_TIMEOUT_MS"));
 const HEALTHCHECK_ENDPOINT = requireEnvVar("RT_HEALTHCHECK_ENDPOINT");
 
@@ -104,7 +104,7 @@ const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
     const sleepDuration = nextInvocationInterval();
     const moreThanOneMinute = sleepDuration > 60_000;
     const reachedArchiveLimit =
-      runtimeState.protobufs.length >= ARCHIVE_SIZE_LIMIT;
+      runtimeState.protobufs.length >= ARCHIVE_COUNT_LIMIT;
 
     if (reachedArchiveLimit || moreThanOneMinute) {
       await dumpToDisk(runtimeState.protobufs);

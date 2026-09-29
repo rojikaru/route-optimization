@@ -2,6 +2,7 @@ import { requireEnvVar } from "~/lib/env.ts";
 import type { HealthCheckMode } from "~/lib/types.ts";
 
 const USER_AGENT = requireEnvVar("USER_AGENT");
+const FETCH_TIMEOUT_MS = Number.parseInt(requireEnvVar("FETCH_TIMEOUT_MS"));
 
 const urlForMode = (endpoint: string, mode: HealthCheckMode) => {
   const healthcheckSeparator = endpoint.endsWith("/") ? "" : "/";
@@ -20,15 +21,25 @@ const urlForMode = (endpoint: string, mode: HealthCheckMode) => {
   }
 };
 
-export const healthCheck = async (endpoint: string, mode: HealthCheckMode = "success") => {
+export const healthCheck = async (
+  endpoint: string,
+  mode: HealthCheckMode = "success",
+  body?: unknown,
+) => {
+  const options: RequestInit = {
+    method: "POST",
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Content-Type": "application/json",
+    },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  };
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
   try {
-    const response = await fetch(urlForMode(endpoint, mode), {
-      method: "GET",
-      headers: {
-        "User-Agent": USER_AGENT,
-      },
-      signal: AbortSignal.timeout(5000), // 5 seconds timeout
-    });
+    const response = await fetch(urlForMode(endpoint, mode), options);
     if (!response.ok) {
       console.error(
         `Health check failed with status: ${response.status} ${response.statusText}`,

@@ -182,28 +182,41 @@ const treeHash = (files: FileRecord[]): string =>
     "sha256",
   );
 
-const isUnchanged = async (
+type HashCheckResult =
+  | { changed: true }
+  | {
+      changed: false;
+      since: Temporal.Instant;
+    };
+
+const checkFeedStatus = async (
   r2: S3Client,
   feedHash: string,
-): Promise<boolean> => {
+): Promise<HashCheckResult> => {
   const file = r2.file(LATEST_HASH_FILE);
-  const exists = await file.exists();
-  if (!exists) {
-    console.info("No previous feed hash found, treating as changed.");
-    return false;
-  }
+  try {
+    const previousStamp = await file.text();
+    const previousHash = previousStamp.split("-")[1];
 
-  const previousStamp = await file.text();
-  const previousHash = previousStamp.split("-")[1];
-  if (previousHash === feedHash) {
-    console.info("Feed hash unchanged, skipping upload.");
-    return true;
-  }
+    if (previousHash === feedHash) {
+      console.info("Feed hash unchanged, skipping upload.");
 
-  console.info(
-    `Feed hash changed: ${previousHash} -> ${feedHash}, proceeding with upload.`,
-  );
-  return false;
+      const stat = await file.stat();
+      const lastModified = stat.lastModified.toTemporalInstant();
+      return { changed: false, since: lastModified };
+    }
+
+    console.info(
+      `Feed hash changed: ${previousHash} -> ${feedHash}, proceeding with upload.`,
+    );
+    return { changed: true };
+  } catch (error) {
+    console.info(
+      "No previous feed hash found or error reading it, treating as changed.",
+      error,
+    );
+    return { changed: true };
+  }
 };
 
 const commit = async (
@@ -245,9 +258,12 @@ const main = async () => {
     const files = inspectZip(zipPath);
     const feedHash = treeHash(files);
 
-    if (await isUnchanged(r2, feedHash)) {
+    const status = await checkFeedStatus(r2, feedHash);
+    if (!status.changed) {
       await healthCheck(HEALTHCHECK_ENDPOINT, "success", {
         message: "Feed unchanged, skipping upload.",
+        currentHash: feedHash,
+        lastUpdatedAt: status.since,
       });
       return;
     }
@@ -257,6 +273,7 @@ const main = async () => {
 
     await healthCheck(HEALTHCHECK_ENDPOINT, "success", {
       message: "Feed processed and committed successfully.",
+      feedHash,
     });
   } catch (error) {
     console.error("Error occurred during processing:", error);

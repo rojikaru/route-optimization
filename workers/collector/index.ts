@@ -220,8 +220,12 @@ const main = async () => {
 
     console.error(`Exiting due to: ${runtimeState.failReason}`);
 
-    console.info("Waiting for upload loop to finish...");
-    await Promise.race([upload, Bun.sleep(10_000)]);
+    console.info("Giving 10 seconds for upload loop to finish...");
+    const uploadResult = await Promise.race([
+      upload.then(() => "success"),
+      Bun.sleep(10_000).then(() => "timeout"),
+    ]);
+    console.info(`Upload loop finished due to ${uploadResult}`);
 
     process.exit(runtimeState.exitCode);
   }

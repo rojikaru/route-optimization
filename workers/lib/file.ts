@@ -71,7 +71,7 @@ export const hivePrefixFromFilename = (
 
 export const dumpToDisk = async (protobufFiles: ProtobufFile[]) => {
   if (protobufFiles.length === 0) {
-    console.info("No protobuf files to upload to S3.");
+    console.warn("No protobuf files to dump to disk.");
     return;
   }
 

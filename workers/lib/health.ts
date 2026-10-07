@@ -1,3 +1,5 @@
+import assert from "node:assert";
+
 import { requireEnvVar } from "~/lib/env.ts";
 import type { HealthCheckMode } from "~/lib/types.ts";
 
@@ -46,6 +48,7 @@ export const healthCheck = async (
       );
     }
   } catch (error) {
-    console.error("Health check error:", error);
+    assert.ok(error instanceof Error, "Health check error is not an instance of Error");
+    console.error("Health check error:", error.toString());
   }
 };

@@ -103,9 +103,10 @@ export const dumpToDisk = async (protobufFiles: ProtobufFile[]) => {
 export const uploadPending = async (
   s3: S3Client,
   limit: number = 5,
-): Promise<void> => {
+): Promise<number> => {
   const glob = new Glob("archives/**/*.tar.gz");
   let count = 0;
+
   for await (const path of glob.scan()) {
     if (count >= limit) {
       console.info(`Reached flush limit of ${limit}, stopping.`);
@@ -135,6 +136,8 @@ export const uploadPending = async (
     await file.delete();
     count++;
   }
+
+  return count;
 };
 
 export const createR2Client = () => {

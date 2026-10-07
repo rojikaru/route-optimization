@@ -38,11 +38,11 @@ export class RuntimeState {
     this.headers = state;
   }
 
-  get retryUploadAfter() {
+  get nextUploadAt() {
     return this.uploadAfter;
   }
 
-  set retryUploadAfter(instant: Temporal.Instant) {
+  set nextUploadAt(instant: Temporal.Instant) {
     this.uploadAfter = instant;
   }
 

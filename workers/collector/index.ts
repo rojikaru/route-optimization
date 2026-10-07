@@ -28,21 +28,12 @@ const HEALTHCHECK_ENDPOINT = requireEnvVar("HEALTHCHECK_ENDPOINT");
 const API_ENDPOINT = requireEnvVar("API_ENDPOINT");
 const USER_AGENT = requireEnvVar("USER_AGENT");
 
-const apiResponseToFile = async (
-  response: Response,
+const apiResponseToFile = (
+  data: Uint8Array | null,
   state: HeaderState,
-): Promise<ProtobufFile | null> => {
-  if (response.status === 304) {
-    return null;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch protobuf data: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  const data = await response.bytes();
+): ProtobufFile | null => {
+  if (!data) return null;
+  
   const stamp = mtime(state);
   const filename = `${stamp}-${hash(data)}.pb`;
   return [filename, data];
@@ -50,7 +41,8 @@ const apiResponseToFile = async (
 
 const collectRt = async (
   state: HeaderState,
-): Promise<[HeaderState, ProtobufFile | null]> => {
+  maxRetries: number = 3,
+): Promise<[HeaderState, Uint8Array | null]> => {
   const { etag, lastModified } = state;
   const headers: Record<string, string> = {
     "User-Agent": USER_AGENT,
@@ -62,19 +54,54 @@ const collectRt = async (
     headers["If-Modified-Since"] = lastModified;
   }
 
-  const startTime = performance.now();
-  const response = await fetch(API_ENDPOINT, {
-    headers,
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  console.info(response.status, performance.now() - startTime, "ms");
+  let lastError: unknown = null;
+  for (let currentTry = 0; currentTry < maxRetries; currentTry++) {
+    if (currentTry > 0) {
+      await Bun.sleep(500 * currentTry);
+    }
 
-  const newState: HeaderState = {
-    etag: response.headers.get("etag") ?? etag,
-    lastModified: response.headers.get("last-modified") ?? lastModified,
-  };
-  const protobufFile = await apiResponseToFile(response, newState);
-  return [newState, protobufFile];
+    try {
+      const startTime = performance.now();
+      const response = await fetch(API_ENDPOINT, {
+        headers,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      console.info(response.status, performance.now() - startTime, "ms");
+
+      const newState: HeaderState = {
+        etag: response.headers.get("etag") ?? state.etag,
+        lastModified:
+          response.headers.get("last-modified") ?? state.lastModified,
+      };
+
+      if (response.status === 304) {
+        return [newState, null];
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch protobuf data: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const data = await response.bytes();
+      if (currentTry > 0) {
+        console.info(
+          `Successfully recovered on attempt ${currentTry + 1}`,
+        );
+      }
+      return [newState, data];
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        throw error;
+      }
+      lastError = error;
+      console.warn(`Network error on attempt ${currentTry + 1}: ${error}. Retrying...`);
+    }
+  }
+
+  throw new Error("Failed to collect RT, maximum retries exceeded", {
+    cause: lastError,
+  });
 };
 
 const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
@@ -100,12 +127,13 @@ const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
   }
 
   try {
-    const [headerState, protobufFile] = await collectRt(
+    const [headerState, protobuf] = await collectRt(
       runtimeState.headerState,
     );
     runtimeState.headerState = headerState;
     runtimeState.resetFailedCount();
 
+    const protobufFile = apiResponseToFile(protobuf, headerState);
     if (protobufFile) {
       runtimeState.appendFile(protobufFile);
     }
@@ -132,7 +160,7 @@ const tick = async (runtimeState: RuntimeState, r2: S3Client) => {
       error instanceof Error,
       "Caught error is not an instance of Error",
     );
-    console.error(error.toString());
+    console.error(error.toString() + " (retrying in 5s)...");
     await Bun.sleep(5_000);
   }
 };
